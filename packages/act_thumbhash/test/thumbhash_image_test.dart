@@ -40,7 +40,9 @@ void testHelper(int fileNum, {int baseSize = 0}) {
     }
   } else if (fileNum == 3) {
     expect(result.height, greaterThan(result.width));
-    expect(result.height, equals(baseSize));
+    if (baseSize != 0) {
+      expect(result.height, equals(baseSize));
+    }
   }
 
   expect(result.width, greaterThan(0));

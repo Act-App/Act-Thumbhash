@@ -1,4 +1,5 @@
 name: act_thumbhash_flutter
+description: Flutter widgets and image providers for ThumbHash image placeholders. Show instant lossy previews while full images load.
 
 homepage: https://github.com/Act-App/Act-Thumbhash
 repository: https://github.com/Act-App/Act-Thumbhash/tree/main/packages/act_thumbhash_flutter
@@ -14,8 +15,7 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
-  act_thumbhash:
-    path: ../act_thumbhash
+  act_thumbhash: ^1.0.0-dev.1
 
 dev_dependencies:
   flutter_test:

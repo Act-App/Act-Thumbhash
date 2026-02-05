@@ -1,4 +1,5 @@
 name: act_thumbhash
+description: A pure Dart implementation of the ThumbHash image placeholder algorithm. Encode images into compact hashes and decode them into lossy previews.
 
 homepage: https://github.com/Act-App/Act-Thumbhash
 repository: https://github.com/Act-App/Act-Thumbhash/tree/main/packages/act_thumbhash

@@ -7,3 +7,14 @@ workspace:
   - packages/act_thumbhash_flutter
 dev_dependencies:
   melos: ^7.4.0
+
+melos:
+  repository: https://github.com/Act-App/Act-Thumbhash
+  scripts:
+    test:
+      run: dart test
+      exec:
+        concurrency: 1
+      packageFilters:
+        flutter: false
+        dirExists: test

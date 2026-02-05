@@ -1,4 +1,15 @@
 name: act_thumbhash_flutter
 environment:
   sdk: ^3.6.0
+  flutter: '>=3.10.0'
 resolution: workspace
+
+dependencies:
+  flutter:
+    sdk: flutter
+  act_thumbhash:
+    path: ../act_thumbhash
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter

@@ -21,30 +21,12 @@ class ThumbHashDecodeResult {
   });
 }
 
+const maxEncodeDim = 128;
+
 /// ThumbHash encoder and decoder.
 ///
 /// Provides both synchronous and asynchronous methods for encoding and
 /// decoding ThumbHash image placeholders.
-///
-/// ## Async vs Sync
-///
-/// Use async methods (`encodeAsync`, `decodeAsync`, etc.) in Flutter apps
-/// to avoid blocking the UI thread. Use sync methods (`encodeSync`,
-/// `decodeSync`, etc.) in CLI tools or backend code where blocking is acceptable.
-///
-/// ## Example
-///
-/// ```dart
-/// // Encoding
-/// final hash = await ThumbHash.encodeAsync(width, height, rgbaBytes);
-///
-/// // Decoding
-/// final result = await ThumbHash.decodeAsync(hash);
-/// print('Size: ${result.width}x${result.height}');
-///
-/// // Get data URL for display
-/// final dataUrl = await ThumbHash.toDataUrlAsync(hash);
-/// ```
 class ThumbHash {
   ThumbHash._();
 
@@ -57,13 +39,12 @@ class ThumbHash {
   /// This runs the encoding in a separate isolate to avoid blocking the main
   /// thread. Use this for UI applications.
   ///
-  /// [width] and [height] must be 100 or less.
   /// [rgba] must contain width * height * 4 bytes (RGBA format).
   /// RGB should NOT be premultiplied by A.
   ///
   /// Returns the ThumbHash as a [Uint8List].
   ///
-  /// Throws [ArgumentError] if dimensions exceed 100x100 or rgba length is wrong.
+  /// Throws [ArgumentError] if the size of [rgba] didn't match width * height * 4.
   static Future<Uint8List> encodeAsync(
     int width,
     int height,
@@ -93,22 +74,44 @@ class ThumbHash {
 
   /// Encodes an RGBA image to a ThumbHash synchronously.
   ///
-  /// [width] and [height] must be 100 or less.
   /// [rgba] must contain width * height * 4 bytes (RGBA format).
   /// RGB should NOT be premultiplied by A.
   ///
   /// Returns the ThumbHash as a [Uint8List].
   ///
-  /// Throws [ArgumentError] if dimensions exceed 100x100.
+  /// Throws [ArgumentError] if the size of [rgba] didn't match width * height * 4.
   static Uint8List encodeSync(int width, int height, Uint8List rgba) {
     // Validate input
-    if (width > 100 || height > 100) {
-      throw ArgumentError('$width x $height doesn\'t fit in 100x100');
-    }
     if (rgba.length != width * height * 4) {
       throw ArgumentError(
         'Expected ${width * height * 4} bytes, got ${rgba.length}',
       );
+    }
+    
+    // resize images larger than max encoding dimension
+	  // (no point in encoding large images)
+    if (math.max(width, height) > maxEncodeDim) {
+      final scale = maxEncodeDim / math.max(width, height);
+      final newW = (width * scale).toInt();
+      final newH = (height * scale).toInt();
+      
+      final image = img.Image.fromBytes(
+        width: width,
+        height: height,
+        bytes: rgba.buffer,
+        numChannels: 4,
+      );
+      
+      final resized = img.copyResize(
+        image,
+        width: newW,
+        height: newH,
+        interpolation: img.Interpolation.nearest,
+      );
+      
+      width = newW;
+      height = newH;
+      rgba = resized.getBytes();
     }
 
     final w = width;

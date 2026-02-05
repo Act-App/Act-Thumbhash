@@ -108,4 +108,4 @@ FadeInImage(
 
 # Licensing
 act-thumbhash is open source software distributed under the
-MIT license.
+[MIT](https://opensource.org/license/mit) license.

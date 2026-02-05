@@ -19,4 +19,4 @@ from the hash. Then load the original image asynchronously.
 
 # Licensing
 act-thumbhash is open source software distributed under the
- license.
+[MIT](https://opensource.org/license/mit) license.

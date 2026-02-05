@@ -12,29 +12,11 @@ import 'package:act_thumbhash/act_thumbhash.dart';
 /// based on the ThumbHash content, enabling Flutter's `ImageCache` to work
 /// properly. This means identical ThumbHashes will be decoded only once and
 /// reused from cache.
-///
-/// ## Usage
-/// ```dart
-/// Image(
-///   image: ThumbHashImageProvider(myThumbHashBytes),
-///   fit: BoxFit.cover,
-/// )
-/// ```
-///
-/// ## How Caching Works
-///
-/// Flutter's image system uses `ImageProvider` as a cache key. When you create
-/// two `ThumbHashImageProvider` instances with the same hash bytes, they will
-/// be considered equal (`==` returns true), so Flutter will reuse the decoded
-/// image from its cache instead of decoding again.
-///
-/// This solves the "blinking" issue where images in a scrolling list would
-/// re-decode every time they came back into view.
 @immutable
 class ThumbHashImageProvider extends ImageProvider<ThumbHashImageProvider> {
   /// Creates a ThumbHash image provider.
   ///
-  /// [hash] is the ThumbHash bytes (typically 20-30 bytes).
+  /// [hash] is the ThumbHash bytes.
   /// [scale] is the scale to place in the [ImageInfo] object (default: 1.0).
   const ThumbHashImageProvider(
     this.hash, {
@@ -45,13 +27,6 @@ class ThumbHashImageProvider extends ImageProvider<ThumbHashImageProvider> {
   ///
   /// [base64Hash] is the ThumbHash encoded as a base64 string.
   /// [scale] is the scale to place in the [ImageInfo] object (default: 1.0).
-  ///
-  /// ```dart
-  /// Image(
-  ///   image: ThumbHashImageProvider.fromBase64('3OcRJYB4d3h/iIeHeEh3eIhw+j3A'),
-  ///   fit: BoxFit.cover,
-  /// )
-  /// ```
   factory ThumbHashImageProvider.fromBase64(
     String base64Hash, {
     double scale = 1.0,
@@ -125,7 +100,7 @@ class ThumbHashImageProvider extends ImageProvider<ThumbHashImageProvider> {
   ///
   /// Computed from the actual bytes of the ThumbHash, not the object identity.
   @override
-  int get hashCode => Object.hash(_bytesHashCode(hash), scale);
+  int get hashCode => Object.hash(_fnv1a(hash), scale);
 
   @override
   String toString() =>
@@ -156,13 +131,14 @@ class ThumbHashImageProvider extends ImageProvider<ThumbHashImageProvider> {
 
   /// Computes a hash code from byte content.
   ///
-  /// Uses a simple but effective algorithm that considers all bytes.
-  static int _bytesHashCode(Uint8List bytes) {
-    // FNV-1a hash algorithm
-    var hash = 0x811c9dc5;
-    for (var i = 0; i < bytes.length; i++) {
+  /// Uses FNV-1a hash algorithm.
+  static int _fnv1a(Uint8List bytes) {
+    const int FNV_OFFSET_BASIS = 0x811c9dc5;
+    const int FNV_PRIME = 0x01000193;
+    int hash = FNV_OFFSET_BASIS;
+    for (int i = 0; i < bytes.length; i++) {
       hash ^= bytes[i];
-      hash = (hash * 0x01000193) & 0xFFFFFFFF;
+      hash = (hash * FNV_PRIME) & 0xFFFFFFFF;
     }
     return hash;
   }

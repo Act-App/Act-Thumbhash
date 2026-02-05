@@ -1,4 +1,9 @@
 name: act_thumbhash
+
+homepage: https://github.com/Act-App/Act-Thumbhash
+repository: https://github.com/Act-App/Act-Thumbhash/tree/main/packages/act_thumbhash
+issue_tracker: https://github.com/Act-App/Act-Thumbhash/issues
+
 environment:
   sdk: ^3.6.0
 resolution: workspace

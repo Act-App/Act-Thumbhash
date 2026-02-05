@@ -14,23 +14,3 @@ updates:
       - rayakame
     rebase-strategy: auto
     target-branch: main
-  - package-ecosystem: pub
-    directory: /packages/act_thumbhash/
-    schedule:
-      interval: daily
-    assignees:
-      - rayakame
-    reviewers:
-      - rayakame
-    rebase-strategy: auto
-    target-branch: main
-  - package-ecosystem: pub
-    directory: /packages/act_thumbhash_flutter/
-    schedule:
-      interval: daily
-    assignees:
-      - rayakame
-    reviewers:
-      - rayakame
-    rebase-strategy: auto
-    target-branch: main

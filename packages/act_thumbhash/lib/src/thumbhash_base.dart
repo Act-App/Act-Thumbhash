@@ -441,11 +441,9 @@ class ThumbHash {
     return ThumbHashDecodeResult(width: w, height: h, rgba: rgba);
   }
 
-
   // ============================================================
   // PRIVATE HELPERS
   // ============================================================
-
 
   static int _countAcCoeffs(int nx, int ny) {
     var count = 0;

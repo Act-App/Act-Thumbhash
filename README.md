@@ -18,7 +18,7 @@ from the hash. Then load the original image asynchronously.
 
 ```yaml
 dependencies:
-  act_thumbhash: ^1.0.0
+  act_thumbhash: ^1.0.0 # For non Flutter projects
   act_thumbhash_flutter: ^1.0.0  # For Flutter projects
 ```
 

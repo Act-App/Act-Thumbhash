@@ -348,8 +348,8 @@ class ThumbHash {
       ly,
       isLandscape,
     );
-    final w = (ratio > 1) ? baseSize : (baseSize * ratio).round();
-    final h = (ratio > 1) ? (baseSize / ratio).round() : baseSize;
+    final w = isLandscape ? baseSize : (baseSize / ratio).round();
+    final h = isLandscape ? (baseSize / ratio).round() : baseSize;
 
     final rgba = Uint8List(w * h * 4);
 

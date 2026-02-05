@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+<module fileurl="file://$PROJECT_DIR$/packages/act_thumbhash/melos_act_thumbhash.iml" filepath="$PROJECT_DIR$/packages/act_thumbhash/melos_act_thumbhash.iml"/>
+<module fileurl="file://$PROJECT_DIR$/packages/act_thumbhash_flutter/melos_act_thumbhash_flutter.iml" filepath="$PROJECT_DIR$/packages/act_thumbhash_flutter/melos_act_thumbhash_flutter.iml"/>
+<module fileurl="file://$PROJECT_DIR$/melos__.iml" filepath="$PROJECT_DIR$/melos__.iml"/>
+    </modules>
+  </component>
+</project>

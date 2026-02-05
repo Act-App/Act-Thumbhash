@@ -1,0 +1,4 @@
+name: act_thumbhash_flutter
+environment:
+  sdk: ^3.6.0
+resolution: workspace

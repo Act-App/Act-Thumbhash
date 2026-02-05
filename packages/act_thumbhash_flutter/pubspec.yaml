@@ -16,7 +16,3 @@ dependencies:
   flutter:
     sdk: flutter
   act_thumbhash: ^1.0.0-dev.1
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter

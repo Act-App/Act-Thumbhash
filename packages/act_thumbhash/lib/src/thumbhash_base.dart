@@ -64,8 +64,8 @@ class ThumbHash {
   /// RGB is NOT premultiplied by A.
   ///
   /// Throws [ArgumentError] if hash is too short.
-  static Future<ThumbHashDecodeResult> decodeAsync(Uint8List hash) async {
-    return Isolate.run(() => decodeSync(hash));
+  static Future<ThumbHashDecodeResult> decodeAsync(Uint8List hash, {int baseSize = 32}) async {
+    return Isolate.run(() => decodeSync(hash, baseSize: baseSize));
   }
 
   // ============================================================
@@ -247,7 +247,7 @@ class ThumbHash {
   ///
   /// Returns [ThumbHashDecodeResult] containing width, height, and RGBA data.
   /// RGB is NOT premultiplied by A.
-  static ThumbHashDecodeResult decodeSync(Uint8List hash) {
+  static ThumbHashDecodeResult decodeSync(Uint8List hash, {int baseSize = 32}) {
     if (hash.length < 5) {
       throw ArgumentError('Hash is too short (minimum 5 bytes)');
     }
@@ -347,7 +347,6 @@ class ThumbHash {
       ly,
       isLandscape,
     );
-    const baseSize = 32;
     final w = (ratio > 1) ? baseSize : (baseSize * ratio).round();
     final h = (ratio > 1) ? (baseSize / ratio).round() : baseSize;
 

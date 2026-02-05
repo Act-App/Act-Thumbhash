@@ -64,7 +64,8 @@ class ThumbHash {
   /// RGB is NOT premultiplied by A.
   ///
   /// Throws [ArgumentError] if hash is too short.
-  static Future<ThumbHashDecodeResult> decodeAsync(Uint8List hash, {int baseSize = 32}) async {
+  static Future<ThumbHashDecodeResult> decodeAsync(Uint8List hash,
+      {int baseSize = 32}) async {
     return Isolate.run(() => decodeSync(hash, baseSize: baseSize));
   }
 
@@ -87,31 +88,31 @@ class ThumbHash {
         'Expected ${width * height * 4} bytes, got ${rgba.length}',
       );
     }
-    
+
     // resize images larger than max encoding dimension
-	  // (no point in encoding large images)
+    // (no point in encoding large images)
     if (math.max(width, height) > maxEncodeDim) {
       final scale = maxEncodeDim / math.max(width, height);
       final newW = (width * scale).toInt();
       final newH = (height * scale).toInt();
-      
-      final image = img.Image.fromBytes(
-        width: width,
-        height: height,
-        bytes: rgba.buffer,
-        numChannels: 4,
-      );
-      
-      final resized = img.copyResize(
-        image,
-        width: newW,
-        height: newH,
-        interpolation: img.Interpolation.nearest,
-      );
-      
+
+      final newRgba = Uint8List(newW * newH * 4);
+      for (var y = 0; y < newH; y++) {
+        for (var x = 0; x < newW; x++) {
+          final srcX = (x * width / newW).floor();
+          final srcY = (y * height / newH).floor();
+          final srcIdx = (srcY * width + srcX) * 4;
+          final dstIdx = (y * newW + x) * 4;
+          newRgba[dstIdx] = rgba[srcIdx];
+          newRgba[dstIdx + 1] = rgba[srcIdx + 1];
+          newRgba[dstIdx + 2] = rgba[srcIdx + 2];
+          newRgba[dstIdx + 3] = rgba[srcIdx + 3];
+        }
+      }
+
       width = newW;
       height = newH;
-      rgba = resized.getBytes();
+      rgba = newRgba;
     }
 
     final w = width;

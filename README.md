@@ -1,8 +1,8 @@
 # act-thumbhash
 ## Introduction
-The act-thumbhash library implements the
+The act-thumbhash libraries implement the
 [Thumbhash](https://evanw.github.io/thumbhash/) image placeholder generation
-algorithm invented by [Evan Wallace](https://madebyevan.com/) for dart.
+algorithm invented by [Evan Wallace](https://madebyevan.com/) for dart & flutter.
 
 This algorithm is used to calculate a small binary hash representing an image
 using a [Discrete Cosine

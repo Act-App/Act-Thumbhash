@@ -53,12 +53,14 @@ void main() {
       expect(resultAsync.rgba, equals(resultSync.rgba));
     });
 
-    test('throws on image too large', () {
-      final largeRgba = Uint8List(101 * 101 * 4);
-      expect(
-        () => ThumbHash.encodeSync(101, 101, largeRgba),
-        throwsArgumentError,
-      );
+    test('image too large', () {
+      final largeRgba = Uint8List(150 * 150 * 4);
+      final hash = ThumbHash.encodeSync(150, 150, largeRgba);
+      final result = ThumbHash.decodeSync(hash);
+      expect(hash, isNotEmpty);
+      expect(hash.length, greaterThanOrEqualTo(5));
+      expect(result.width, lessThan(129));
+      expect(result.height, lessThan(129));
     });
 
     test('throws on hash too short', () {

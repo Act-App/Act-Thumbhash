@@ -1,0 +1,11 @@
+name: act_thumbhash_flutter_example
+description: Example for act_thumbhash_flutter
+publish_to: 'none'
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  act_thumbhash_flutter: ^1.0.0-dev.1

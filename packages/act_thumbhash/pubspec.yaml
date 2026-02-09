@@ -5,7 +5,7 @@ homepage: https://github.com/Act-App/Act-Thumbhash
 repository: https://github.com/Act-App/Act-Thumbhash/tree/main/packages/act_thumbhash
 issue_tracker: https://github.com/Act-App/Act-Thumbhash/issues
 
-version: 1.0.0-dev.1
+version: 1.0.0-dev.2
 
 environment:
   sdk: ^3.6.0

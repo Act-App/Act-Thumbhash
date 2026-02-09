@@ -5,7 +5,7 @@ homepage: https://github.com/Act-App/Act-Thumbhash
 repository: https://github.com/Act-App/Act-Thumbhash/tree/main/packages/act_thumbhash_flutter
 issue_tracker: https://github.com/Act-App/Act-Thumbhash/issues
 
-version: 1.0.0-dev.1
+version: 1.0.0-dev.2
 
 environment:
   sdk: ^3.6.0
@@ -15,4 +15,4 @@ resolution: workspace
 dependencies:
   flutter:
     sdk: flutter
-  act_thumbhash: ^1.0.0-dev.1
+  act_thumbhash: ^1.0.0-dev.2

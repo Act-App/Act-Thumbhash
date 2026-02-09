@@ -10,7 +10,7 @@ For Flutter-specific widgets and image providers, see [act_thumbhash_flutter](ht
 
 ```yaml
 dependencies:
-  act_thumbhash: ^1.0.0
+  act_thumbhash: ^1.0.0-dev.2
 ```
 
 ## Usage

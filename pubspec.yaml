@@ -6,7 +6,7 @@ workspace:
   - packages/act_thumbhash
   - packages/act_thumbhash_flutter
 dev_dependencies:
-  melos: ^7.4.0
+  melos: ^8.2.1
 
 melos:
   repository: https://github.com/Act-App/Act-Thumbhash

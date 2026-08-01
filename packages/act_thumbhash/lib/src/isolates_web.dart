@@ -7,5 +7,5 @@
 /// implementation, the closure runs against live captured state: callers must
 /// not mutate inputs until the returned future completes.
 Future<R> runIsolated<R>(R Function() computation) {
-  return Future<R>.delayed(Duration.zero, computation);
+  return Future<R>(computation);
 }

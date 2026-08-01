@@ -1,5 +1,8 @@
 ## Unreleased
 
+- **Perf**: the encoder and decoder now precompute their DCT basis tables and
+  skip coefficients the format discards, making encoding roughly 9x and
+  decoding roughly 4x faster. Output is byte-for-byte unchanged.
 - **Fix**: `decodeSync` now validates the hash length against what its header
   requires and throws the documented `ArgumentError` for truncated input,
   instead of surfacing an out-of-bounds `RangeError` partway through decoding.

@@ -2,16 +2,7 @@ import 'dart:typed_data';
 import 'package:test/test.dart';
 import 'package:act_thumbhash/act_thumbhash.dart';
 
-Uint8List solid(int w, int h, {int a = 255}) {
-  final b = Uint8List(w * h * 4);
-  for (var i = 0; i < w * h; i++) {
-    b[i * 4] = 180;
-    b[i * 4 + 1] = 90;
-    b[i * 4 + 2] = 45;
-    b[i * 4 + 3] = a;
-  }
-  return b;
-}
+import 'helpers.dart';
 
 /// Matches the deliberate validation errors thrown by `decodeSync`, and
 /// nothing else. A plain `throwsArgumentError` would be tautological here:
@@ -84,8 +75,7 @@ void main() {
       // Foreign implementations may emit lCount values this encoder never
       // produces. Patch the count field (bits 24-26 of the first header word)
       // to its maximum so the header demands more AC data than follows.
-      final patched =
-          Uint8List.fromList(ThumbHash.encodeSync(48, 64, solid(48, 64)));
+      final patched = ThumbHash.encodeSync(48, 64, solid(48, 64));
       patched[3] |= 7;
       expect(
         () => ThumbHash.decodeSync(patched),

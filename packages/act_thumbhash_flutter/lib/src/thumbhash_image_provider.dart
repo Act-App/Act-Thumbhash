@@ -71,15 +71,6 @@ class ThumbHashImageProvider extends ImageProvider<ThumbHashImageProvider> {
   Future<ImageInfo> _loadAsync(ThumbHashImageProvider key) async {
     assert(key == this);
 
-    final image = await _decodeThumbHashToUiImage(hash, baseSize);
-    return ImageInfo(image: image, scale: scale);
-  }
-
-  /// Decodes a ThumbHash to a Flutter [ui.Image].
-  static Future<ui.Image> _decodeThumbHashToUiImage(
-    Uint8List hash,
-    int baseSize,
-  ) async {
     // Decode ThumbHash to RGBA (runs in isolate)
     final result = await ThumbHash.decodeAsync(hash, baseSize: baseSize);
 
@@ -98,7 +89,7 @@ class ThumbHashImageProvider extends ImageProvider<ThumbHashImageProvider> {
         final codec = await descriptor.instantiateCodec();
         try {
           final frame = await codec.getNextFrame();
-          return frame.image;
+          return ImageInfo(image: frame.image, scale: scale);
         } finally {
           codec.dispose();
         }

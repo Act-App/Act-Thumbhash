@@ -1,5 +1,9 @@
 ## Unreleased
 
+- **Feat**: Web support. `dart:isolate` is no longer imported unconditionally;
+  on the web (both dart2js and dart2wasm) `encodeAsync` and `decodeAsync` run
+  the computation on the event loop after yielding once, since isolates are
+  unavailable there. Native behaviour is unchanged.
 - **Fix**: `encodeSync` emitted too few luminance coefficients for images with
   an aspect ratio steeper than roughly 2.8:1 (2:1 with alpha), in either
   orientation. The resulting hashes were shorter than any decoder expects, so

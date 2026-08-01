@@ -92,56 +92,19 @@ class ThumbHashImageProvider extends ImageProvider<ThumbHashImageProvider> {
     if (other.runtimeType != runtimeType) return false;
 
     return other is ThumbHashImageProvider &&
-        _bytesEqual(hash, other.hash) &&
-        scale == other.scale;
+        scale == other.scale &&
+        listEquals(hash, other.hash);
   }
 
   /// Content-based hash code.
   ///
   /// Computed from the actual bytes of the ThumbHash, not the object identity.
   @override
-  int get hashCode => Object.hash(_fnv1a(hash), scale);
+  int get hashCode => Object.hash(Object.hashAll(hash), scale);
 
   @override
   String toString() =>
       '${objectRuntimeType(this, 'ThumbHashImageProvider')}(${hash.length} bytes, scale: $scale)';
-
-  /// Efficiently compares two byte lists for equality.
-  static bool _bytesEqual(Uint8List a, Uint8List b) {
-    if (identical(a, b)) return true;
-    if (a.length != b.length) return false;
-
-    // Compare 8 bytes at a time for efficiency
-    final numWords = a.lengthInBytes ~/ 8;
-    if (numWords > 0) {
-      final words1 = a.buffer.asUint64List(a.offsetInBytes, numWords);
-      final words2 = b.buffer.asUint64List(b.offsetInBytes, numWords);
-      for (var i = 0; i < words1.length; i++) {
-        if (words1[i] != words2[i]) return false;
-      }
-    }
-
-    // Compare remaining bytes
-    for (var i = numWords * 8; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-
-    return true;
-  }
-
-  /// Computes a hash code from byte content.
-  ///
-  /// Uses FNV-1a hash algorithm.
-  static int _fnv1a(Uint8List bytes) {
-    const int FNV_OFFSET_BASIS = 0x811c9dc5;
-    const int FNV_PRIME = 0x01000193;
-    int hash = FNV_OFFSET_BASIS;
-    for (int i = 0; i < bytes.length; i++) {
-      hash ^= bytes[i];
-      hash = (hash * FNV_PRIME) & 0xFFFFFFFF;
-    }
-    return hash;
-  }
 }
 
 /// Extension to easily get a [ThumbHashImageProvider] from a [Uint8List].

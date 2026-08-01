@@ -1,5 +1,17 @@
 ## Unreleased
 
+- **Perf**: the encoder and decoder now precompute their DCT basis tables and
+  skip coefficients the format discards, making encoding roughly 9x and
+  decoding roughly 4x faster. Output is byte-for-byte unchanged.
+- **Fix**: `decodeSync` now validates the hash length against what its header
+  requires and throws the documented `ArgumentError` for truncated input,
+  instead of surfacing an out-of-bounds `RangeError` partway through decoding.
+- **Fix**: `decodeSync` and `decodeAsync` now reject `baseSize` values below 1
+  with an `ArgumentError`, and small `baseSize` values can no longer round the
+  decoded image's short side down to zero pixels.
+- **Fix**: encoding images with an aspect ratio steeper than 128:1 no longer
+  throws; the internal downscale now keeps the short side at a minimum of one
+  pixel.
 - **Feat**: Web support. `dart:isolate` is no longer imported unconditionally;
   on the web (both dart2js and dart2wasm) `encodeAsync` and `decodeAsync` run
   the computation on the event loop after yielding once, since isolates are

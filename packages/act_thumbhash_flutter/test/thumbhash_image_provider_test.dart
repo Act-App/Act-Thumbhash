@@ -56,6 +56,13 @@ void main() {
       );
     });
 
+    test('unequal for different baseSize', () {
+      expect(
+        ThumbHashImageProvider(bytes),
+        isNot(equals(ThumbHashImageProvider(bytes, baseSize: 64))),
+      );
+    });
+
     test('unequal for different length', () {
       expect(
         ThumbHashImageProvider(bytes),
@@ -83,10 +90,11 @@ void main() {
       expect(provider.hash, hasLength(21));
     });
 
-    test('toImageProvider extension carries scale', () {
-      final provider = bytes.toImageProvider(scale: 2.0);
+    test('toImageProvider extension carries scale and baseSize', () {
+      final provider = bytes.toImageProvider(scale: 2.0, baseSize: 48);
       expect(provider.hash, same(bytes));
       expect(provider.scale, 2.0);
+      expect(provider.baseSize, 48);
     });
 
     test('obtainKey resolves synchronously to itself', () {
@@ -107,6 +115,17 @@ void main() {
       info.dispose();
     });
 
+    test('baseSize controls the decoded dimensions', () async {
+      final info = await resolveImage(
+        ThumbHashImageProvider.fromBase64(referenceHash, baseSize: 64),
+      );
+      // The reference hash decodes to 23x32 at the default baseSize of 32,
+      // so doubling it doubles the output.
+      expect(info.image.width, 46);
+      expect(info.image.height, 64);
+      info.dispose();
+    });
+
     test('propagates scale into ImageInfo', () async {
       final info = await resolveImage(
         ThumbHashImageProvider.fromBase64(referenceHash, scale: 3.0),
@@ -117,6 +136,13 @@ void main() {
 
     test('reports an error for an invalid hash', () async {
       final provider = ThumbHashImageProvider(Uint8List(3));
+      await expectLater(resolveImage(provider), throwsArgumentError);
+    });
+
+    test('reports an error for an invalid baseSize instead of hanging',
+        () async {
+      final provider =
+          ThumbHashImageProvider.fromBase64(referenceHash, baseSize: 0);
       await expectLater(resolveImage(provider), throwsArgumentError);
     });
   });

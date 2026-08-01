@@ -2,22 +2,14 @@ import 'dart:typed_data';
 import 'package:test/test.dart';
 import 'package:act_thumbhash/act_thumbhash.dart';
 
+import 'helpers.dart';
+
 void main() {
   group('ThumbHash', () {
-    // Create a simple test image (4x4 solid red)
+    // A simple test image (4x4 solid red); no test mutates it.
     final testWidth = 4;
     final testHeight = 4;
-    late Uint8List testRgba;
-
-    setUp(() {
-      testRgba = Uint8List(testWidth * testHeight * 4);
-      for (var i = 0; i < testWidth * testHeight; i++) {
-        testRgba[i * 4] = 255; // R
-        testRgba[i * 4 + 1] = 0; // G
-        testRgba[i * 4 + 2] = 0; // B
-        testRgba[i * 4 + 3] = 255; // A
-      }
-    });
+    final testRgba = solid(testWidth, testHeight, r: 255, g: 0, b: 0);
 
     test('encodeSync produces non-empty hash', () {
       final hash = ThumbHash.encodeSync(testWidth, testHeight, testRgba);
@@ -72,14 +64,9 @@ void main() {
     });
 
     test('encodes and decodes image with alpha', () {
-      // Create image with partial transparency
-      final alphaRgba = Uint8List(testWidth * testHeight * 4);
-      for (var i = 0; i < testWidth * testHeight; i++) {
-        alphaRgba[i * 4] = 255; // R
-        alphaRgba[i * 4 + 1] = 0; // G
-        alphaRgba[i * 4 + 2] = 0; // B
-        alphaRgba[i * 4 + 3] = 128; // Semi-transparent
-      }
+      // Semi-transparent red
+      final alphaRgba =
+          solid(testWidth, testHeight, r: 255, g: 0, b: 0, a: 128);
 
       final hash = ThumbHash.encodeSync(testWidth, testHeight, alphaRgba);
       final result = ThumbHash.decodeSync(hash);
@@ -89,22 +76,7 @@ void main() {
     });
 
     test('handles gradient image', () {
-      final gradientWidth = 10;
-      final gradientHeight = 10;
-      final gradientRgba = Uint8List(gradientWidth * gradientHeight * 4);
-
-      for (var y = 0; y < gradientHeight; y++) {
-        for (var x = 0; x < gradientWidth; x++) {
-          final i = (y * gradientWidth + x) * 4;
-          gradientRgba[i] = (x * 255 ~/ gradientWidth);
-          gradientRgba[i + 1] = (y * 255 ~/ gradientHeight);
-          gradientRgba[i + 2] = 128;
-          gradientRgba[i + 3] = 255;
-        }
-      }
-
-      final hash =
-          ThumbHash.encodeSync(gradientWidth, gradientHeight, gradientRgba);
+      final hash = ThumbHash.encodeSync(10, 10, gradient(10, 10));
       final result = ThumbHash.decodeSync(hash);
 
       expect(result.width, greaterThan(0));

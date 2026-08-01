@@ -90,8 +90,9 @@ void main() {
   });
 
   test('decodes the reference vector from the ThumbHash project', () {
-    final bytes =
-        base64.decode(base64.normalize('1QcSHQRnh493V4dIh4eXh1h4kJUI'));
+    final bytes = base64.decode(
+      base64.normalize('1QcSHQRnh493V4dIh4eXh1h4kJUI'),
+    );
     final result = ThumbHash.decodeSync(bytes);
     expect(result.width, 23);
     expect(result.height, 32);

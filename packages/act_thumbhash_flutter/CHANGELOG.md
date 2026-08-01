@@ -1,3 +1,7 @@
+## Unreleased
+
+- The minimum supported SDK is now Dart 3.8 / Flutter 3.32.
+
 ## 1.0.0
 
 - **Feat**: `ThumbHashImageProvider` now exposes `baseSize`, controlling the

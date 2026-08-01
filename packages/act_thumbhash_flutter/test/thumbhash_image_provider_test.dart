@@ -107,8 +107,9 @@ void main() {
 
   group('image loading', () {
     test('decodes the reference hash to a 23x32 image', () async {
-      final info =
-          await resolveImage(ThumbHashImageProvider.fromBase64(referenceHash));
+      final info = await resolveImage(
+        ThumbHashImageProvider.fromBase64(referenceHash),
+      );
       expect(info.image.width, 23);
       expect(info.image.height, 32);
       expect(info.scale, 1.0);
@@ -139,11 +140,15 @@ void main() {
       await expectLater(resolveImage(provider), throwsArgumentError);
     });
 
-    test('reports an error for an invalid baseSize instead of hanging',
-        () async {
-      final provider =
-          ThumbHashImageProvider.fromBase64(referenceHash, baseSize: 0);
-      await expectLater(resolveImage(provider), throwsArgumentError);
-    });
+    test(
+      'reports an error for an invalid baseSize instead of hanging',
+      () async {
+        final provider = ThumbHashImageProvider.fromBase64(
+          referenceHash,
+          baseSize: 0,
+        );
+        await expectLater(resolveImage(provider), throwsArgumentError);
+      },
+    );
   });
 }

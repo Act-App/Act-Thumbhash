@@ -4,12 +4,6 @@
   "timezone": "Europe/Berlin",
   "packageRules": [
     {
-      "description": "lints/flutter_lints 6.x require Dart ^3.8 while the packages declare ^3.6. CI would stay green (the runner SDK is newer), silently breaking the declared support range, so majors need a deliberate SDK bump first.",
-      "matchPackageNames": ["lints", "flutter_lints"],
-      "matchUpdateTypes": ["major"],
-      "enabled": false
-    },
-    {
       "description": "act_thumbhash is this repository's own package; its constraint in act_thumbhash_flutter is bumped by hand as part of each release.",
       "matchPackageNames": ["act_thumbhash"],
       "enabled": false

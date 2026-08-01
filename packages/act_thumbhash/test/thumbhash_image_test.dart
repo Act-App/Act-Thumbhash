@@ -59,8 +59,9 @@ void main() {
           bytes: result.rgba.buffer,
           numChannels: 4,
         );
-        File('test/fixtures/output_image_$fileNum.png')
-            .writeAsBytesSync(img.encodePng(output));
+        File(
+          'test/fixtures/output_image_$fileNum.png',
+        ).writeAsBytesSync(img.encodePng(output));
       });
     }
   }

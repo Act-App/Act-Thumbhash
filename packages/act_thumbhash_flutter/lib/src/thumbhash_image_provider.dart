@@ -124,7 +124,8 @@ class ThumbHashImageProvider extends ImageProvider<ThumbHashImageProvider> {
   int get hashCode => Object.hash(Object.hashAll(hash), scale, baseSize);
 
   @override
-  String toString() => '${objectRuntimeType(this, 'ThumbHashImageProvider')}'
+  String toString() =>
+      '${objectRuntimeType(this, 'ThumbHashImageProvider')}'
       '(${hash.length} bytes, scale: $scale, baseSize: $baseSize)';
 }
 
@@ -135,8 +136,10 @@ extension ThumbHashImageProviderExtension on Uint8List {
   /// ```dart
   /// final provider = myThumbHashBytes.toImageProvider();
   /// ```
-  ThumbHashImageProvider toImageProvider(
-      {double scale = 1.0, int baseSize = 32}) {
+  ThumbHashImageProvider toImageProvider({
+    double scale = 1.0,
+    int baseSize = 32,
+  }) {
     return ThumbHashImageProvider(this, scale: scale, baseSize: baseSize);
   }
 }

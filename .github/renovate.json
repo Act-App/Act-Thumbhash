@@ -1,0 +1,12 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "timezone": "Europe/Berlin",
+  "packageRules": [
+    {
+      "description": "act_thumbhash is this repository's own package; its constraint in act_thumbhash_flutter is bumped by hand as part of each release.",
+      "matchPackageNames": ["act_thumbhash"],
+      "enabled": false
+    }
+  ]
+}

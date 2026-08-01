@@ -52,23 +52,26 @@ void main() {
     });
 
     for (final alpha in [false, true]) {
-      test('every truncation of a valid ${alpha ? 'alpha' : 'opaque'} hash',
-          () {
-        final full =
-            ThumbHash.encodeSync(64, 48, solid(64, 48, a: alpha ? 128 : 255));
-
-        // Regression: any of these used to surface as a RangeError from an
-        // out-of-bounds read instead of the documented ArgumentError.
-        for (var len = 0; len < full.length; len++) {
-          expect(
-            () => ThumbHash.decodeSync(
-              Uint8List.sublistView(full, 0, len),
-            ),
-            throwsValidationError,
-            reason: 'truncated to $len of ${full.length} bytes',
+      test(
+        'every truncation of a valid ${alpha ? 'alpha' : 'opaque'} hash',
+        () {
+          final full = ThumbHash.encodeSync(
+            64,
+            48,
+            solid(64, 48, a: alpha ? 128 : 255),
           );
-        }
-      });
+
+          // Regression: any of these used to surface as a RangeError from an
+          // out-of-bounds read instead of the documented ArgumentError.
+          for (var len = 0; len < full.length; len++) {
+            expect(
+              () => ThumbHash.decodeSync(Uint8List.sublistView(full, 0, len)),
+              throwsValidationError,
+              reason: 'truncated to $len of ${full.length} bytes',
+            );
+          }
+        },
+      );
     }
 
     test('header claiming more coefficients than the bytes provide', () {
@@ -106,7 +109,8 @@ void main() {
         expect(
           () => ThumbHash.decodeSync(hash, baseSize: size),
           throwsA(
-              isA<ArgumentError>().having((e) => e.name, 'name', 'baseSize')),
+            isA<ArgumentError>().having((e) => e.name, 'name', 'baseSize'),
+          ),
           reason: 'baseSize $size',
         );
       }

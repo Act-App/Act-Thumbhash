@@ -1,3 +1,7 @@
+## Unreleased
+
+- The minimum supported SDK is now Dart 3.8.
+
 ## 1.0.0
 
 - **Perf**: the encoder and decoder now precompute their DCT basis tables and

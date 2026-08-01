@@ -1,8 +1,14 @@
 import 'dart:typed_data';
 
 /// Fills a w x h RGBA buffer with a single colour.
-Uint8List solid(int w, int h,
-    {int r = 180, int g = 90, int b = 45, int a = 255}) {
+Uint8List solid(
+  int w,
+  int h, {
+  int r = 180,
+  int g = 90,
+  int b = 45,
+  int a = 255,
+}) {
   final bytes = Uint8List(w * h * 4);
   for (var i = 0; i < w * h; i++) {
     bytes[i * 4] = r;

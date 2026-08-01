@@ -28,8 +28,11 @@ void main() {
 
     test('encodeAsync produces same result as encodeSync', () async {
       final hashSync = ThumbHash.encodeSync(testWidth, testHeight, testRgba);
-      final hashAsync =
-          await ThumbHash.encodeAsync(testWidth, testHeight, testRgba);
+      final hashAsync = await ThumbHash.encodeAsync(
+        testWidth,
+        testHeight,
+        testRgba,
+      );
 
       expect(hashAsync, equals(hashSync));
     });
@@ -57,16 +60,19 @@ void main() {
 
     test('throws on hash too short', () {
       final shortHash = Uint8List(3);
-      expect(
-        () => ThumbHash.decodeSync(shortHash),
-        throwsArgumentError,
-      );
+      expect(() => ThumbHash.decodeSync(shortHash), throwsArgumentError);
     });
 
     test('encodes and decodes image with alpha', () {
       // Semi-transparent red
-      final alphaRgba =
-          solid(testWidth, testHeight, r: 255, g: 0, b: 0, a: 128);
+      final alphaRgba = solid(
+        testWidth,
+        testHeight,
+        r: 255,
+        g: 0,
+        b: 0,
+        a: 128,
+      );
 
       final hash = ThumbHash.encodeSync(testWidth, testHeight, alphaRgba);
       final result = ThumbHash.decodeSync(hash);

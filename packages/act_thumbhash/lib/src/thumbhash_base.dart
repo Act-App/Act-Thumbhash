@@ -56,11 +56,7 @@ class ThumbHash {
   /// Returns the ThumbHash as a [Uint8List].
   ///
   /// Throws [ArgumentError] if the size of [rgba] didn't match width * height * 4.
-  static Future<Uint8List> encodeAsync(
-    int width,
-    int height,
-    Uint8List rgba,
-  ) =>
+  static Future<Uint8List> encodeAsync(int width, int height, Uint8List rgba) =>
       runIsolated(() => encodeSync(width, height, rgba));
 
   /// Decodes a ThumbHash to an RGBA image asynchronously.
@@ -78,9 +74,10 @@ class ThumbHash {
   /// RGB is NOT premultiplied by A.
   ///
   /// Throws [ArgumentError] if hash is too short.
-  static Future<ThumbHashDecodeResult> decodeAsync(Uint8List hash,
-          {int baseSize = 32}) =>
-      runIsolated(() => decodeSync(hash, baseSize: baseSize));
+  static Future<ThumbHashDecodeResult> decodeAsync(
+    Uint8List hash, {
+    int baseSize = 32,
+  }) => runIsolated(() => decodeSync(hash, baseSize: baseSize));
 
   // ============================================================
   // SYNC METHODS
@@ -322,7 +319,7 @@ class ThumbHash {
     Float64List readAcs(int nx, int ny, double scale) {
       final ac = Float64List(_countAcCoeffs(nx, ny));
       var i = 0;
-      _forEachAc(nx, ny, (_, __) {
+      _forEachAc(nx, ny, (_, _) {
         ac[i++] = (readNibble() / 7.5 - 1.0) * scale;
       });
       return ac;
@@ -429,7 +426,7 @@ class ThumbHash {
 
   static int _countAcCoeffs(int nx, int ny) {
     var count = 0;
-    _forEachAc(nx, ny, (_, __) => count++);
+    _forEachAc(nx, ny, (_, _) => count++);
     return count;
   }
 

@@ -108,5 +108,26 @@ void main() {
     expect(result.width, 23);
     expect(result.height, 32);
     expect(result.rgba.length, 23 * 32 * 4);
+
+    // Pin sampled pixel values. This test runs on the VM and in the browser,
+    // so it anchors the decoder's arithmetic across compilers — dimensional
+    // checks alone stay green when a platform-specific numeric bug garbles
+    // pixel data. The +-2 tolerance absorbs last-ulp trigonometry differences
+    // between platforms; real decode regressions deviate by far more.
+    const samples = {
+      0: (77, 80, 98, 255),
+      100: (104, 101, 110, 255),
+      300: (112, 101, 103, 255),
+      367: (95, 87, 88, 255),
+      500: (60, 54, 57, 255),
+      735: (34, 43, 61, 255),
+    };
+    for (final MapEntry(key: offset, value: (r, g, b, a)) in samples.entries) {
+      final i = offset * 4;
+      expect(result.rgba[i], closeTo(r, 2), reason: 'r at pixel $offset');
+      expect(result.rgba[i + 1], closeTo(g, 2), reason: 'g at pixel $offset');
+      expect(result.rgba[i + 2], closeTo(b, 2), reason: 'b at pixel $offset');
+      expect(result.rgba[i + 3], a, reason: 'a at pixel $offset');
+    }
   });
 }

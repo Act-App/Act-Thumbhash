@@ -1,6 +1,11 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:isolate';
+
+// dart2wasm ships a dart:isolate stub, so selecting on `dart.library.isolate`
+// would route wasm builds to Isolate.run, which throws at runtime there.
+// `dart.library.js_interop` is true for both dart2js and dart2wasm, sending
+// every web target to the event-loop fallback instead.
+import 'isolates_io.dart' if (dart.library.js_interop) 'isolates_web.dart';
 
 /// Result of decoding a ThumbHash, containing the RGBA image data.
 class ThumbHashDecodeResult {
@@ -37,10 +42,14 @@ class ThumbHash {
   /// Encodes an RGBA image to a ThumbHash asynchronously.
   ///
   /// This runs the encoding in a separate isolate to avoid blocking the main
-  /// thread. Use this for UI applications.
+  /// thread. Use this for UI applications. On platforms without isolates (the
+  /// web), the encoding runs on the main thread after yielding once to the
+  /// event loop.
   ///
   /// [rgba] must contain width * height * 4 bytes (RGBA format).
   /// RGB should NOT be premultiplied by A.
+  /// Do not mutate [rgba] until the returned future completes: on the web the
+  /// encoder reads the live buffer, whereas isolates receive a copy.
   ///
   /// Returns the ThumbHash as a [Uint8List].
   ///
@@ -50,15 +59,19 @@ class ThumbHash {
     int height,
     Uint8List rgba,
   ) async {
-    return Isolate.run(() => encodeSync(width, height, rgba));
+    return runIsolated(() => encodeSync(width, height, rgba));
   }
 
   /// Decodes a ThumbHash to an RGBA image asynchronously.
   ///
   /// This runs the decoding in a separate isolate to avoid blocking the main
-  /// thread. Use this for UI applications.
+  /// thread. Use this for UI applications. On platforms without isolates (the
+  /// web), the decoding runs on the main thread after yielding once to the
+  /// event loop.
   ///
-  /// [hash] is the ThumbHash bytes.
+  /// [hash] is the ThumbHash bytes. Do not mutate it until the returned
+  /// future completes: on the web the decoder reads the live buffer, whereas
+  /// isolates receive a copy.
   ///
   /// Returns [ThumbHashDecodeResult] containing width, height, and RGBA data.
   /// RGB is NOT premultiplied by A.
@@ -66,7 +79,7 @@ class ThumbHash {
   /// Throws [ArgumentError] if hash is too short.
   static Future<ThumbHashDecodeResult> decodeAsync(Uint8List hash,
       {int baseSize = 32}) async {
-    return Isolate.run(() => decodeSync(hash, baseSize: baseSize));
+    return runIsolated(() => decodeSync(hash, baseSize: baseSize));
   }
 
   // ============================================================

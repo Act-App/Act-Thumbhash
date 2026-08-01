@@ -1,3 +1,10 @@
+## Unreleased
+
+- **Feat**: Web support. Provider equality no longer relies on `Uint64List`,
+  which dart2js does not support.
+- **Fix**: Comparing providers whose hash bytes are a view into a larger
+  buffer at an offset not aligned to 8 bytes no longer throws.
+
 ## 1.0.0-dev.2
 
 - Documentation and packaging updates

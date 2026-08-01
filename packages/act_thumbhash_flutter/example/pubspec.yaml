@@ -5,7 +5,15 @@ publish_to: 'none'
 environment:
   sdk: '>=3.0.0 <4.0.0'
 
+# The example always runs against the package source in this repository, not
+# a published version. The override keeps the transitive act_thumbhash local
+# too; without it, pub would fetch the published version from pub.dev.
 dependencies:
   flutter:
     sdk: flutter
-  act_thumbhash_flutter: ^1.0.0-dev.1
+  act_thumbhash_flutter:
+    path: ../
+
+dependency_overrides:
+  act_thumbhash:
+    path: ../../act_thumbhash

@@ -140,6 +140,13 @@ class ThumbHash {
     final lx = math.max(1, (lLimit * w / maxWH).round());
     final ly = math.max(1, (lLimit * h / maxWH).round());
 
+    // The raw lx/ly go into the header, but the luminance channel is always
+    // encoded with at least 3 coefficients per axis. The decoder applies the
+    // same floor when reading the header back, so skipping it here would emit
+    // fewer AC coefficients than any decoder expects.
+    final lxEnc = math.max(3, lx);
+    final lyEnc = math.max(3, ly);
+
     // Prepare channel data
     final l = Float64List(w * h);
     final p = Float64List(w * h);
@@ -159,7 +166,7 @@ class ThumbHash {
     }
 
     // Encode using DCT
-    final (lDc, lAc, lScale) = _encodeChannel(l, w, h, lx, ly);
+    final (lDc, lAc, lScale) = _encodeChannel(l, w, h, lxEnc, lyEnc);
     final (pDc, pAc, pScale) = _encodeChannel(p, w, h, 3, 3);
     final (qDc, qAc, qScale) = _encodeChannel(q, w, h, 3, 3);
 
@@ -188,14 +195,16 @@ class ThumbHash {
     final qScaleInt = (63.0 * qScale).round().clamp(0, 63);
     final isLandscapeInt = isLandscape ? 1 : 0;
 
-    // Calculate hash size
-    var hashSize = 4 + _countAcCoeffs(lx, ly);
-    hashSize += _countAcCoeffs(3, 3);
-    hashSize += _countAcCoeffs(3, 3);
+    // Calculate hash size. The header is 5 bytes, followed by one more byte
+    // holding the alpha DC and scale when the image has alpha, so AC
+    // coefficients start at nibble 10 (12 with alpha) and take one nibble each.
+    final acStartNibble = hasAlpha ? 12 : 10;
+    var acCount = _countAcCoeffs(lxEnc, lyEnc);
+    acCount += _countAcCoeffs(3, 3) * 2;
     if (hasAlpha) {
-      hashSize += 1 + _countAcCoeffs(5, 5);
+      acCount += _countAcCoeffs(5, 5);
     }
-    hashSize = (hashSize + 1) ~/ 2 + 3;
+    final hashSize = (acStartNibble + acCount + 1) ~/ 2;
 
     final hash = Uint8List(hashSize);
 
@@ -206,13 +215,13 @@ class ThumbHash {
     hash[3] = lCount | (pScaleInt << 3);
     hash[4] = (pScaleInt >> 5) | (qScaleInt << 1) | (isLandscapeInt << 7);
 
-    var nibbleIndex = 10;
     if (hasAlpha) {
       final aDcInt = (15.0 * aDc).round().clamp(0, 15);
       final aScaleInt = (15.0 * aScale).round().clamp(0, 15);
       hash[5] = aDcInt | (aScaleInt << 4);
-      nibbleIndex = 12;
     }
+
+    var nibbleIndex = acStartNibble;
 
     void writeNibble(int value) {
       final byteIndex = nibbleIndex ~/ 2;

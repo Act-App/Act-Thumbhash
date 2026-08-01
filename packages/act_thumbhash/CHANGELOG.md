@@ -1,4 +1,4 @@
-## Unreleased
+## 1.0.0
 
 - **Perf**: the encoder and decoder now precompute their DCT basis tables and
   skip coefficients the format discards, making encoding roughly 9x and

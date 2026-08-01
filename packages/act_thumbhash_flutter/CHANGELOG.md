@@ -1,4 +1,4 @@
-## Unreleased
+## 1.0.0
 
 - **Feat**: `ThumbHashImageProvider` now exposes `baseSize`, controlling the
   length of the decoded placeholder's longer side (default 32, matching the

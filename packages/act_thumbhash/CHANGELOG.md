@@ -1,4 +1,4 @@
-## Unreleased
+## 1.1.0
 
 - The minimum supported SDK is now Dart 3.8.
 

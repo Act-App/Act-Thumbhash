@@ -20,8 +20,8 @@ Both packages run on all Dart and Flutter platforms, including the web.
 
 ```yaml
 dependencies:
-  act_thumbhash: ^1.0.0          # For non Flutter projects
-  act_thumbhash_flutter: ^1.0.0  # For Flutter projects
+  act_thumbhash: ^1.1.0          # For non Flutter projects
+  act_thumbhash_flutter: ^1.1.0  # For Flutter projects
 ```
 
 ## Usage

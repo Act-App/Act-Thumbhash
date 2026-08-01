@@ -8,7 +8,7 @@ ThumbHash encodes an image into a compact binary hash (~25–35 bytes), which ca
 
 ```yaml
 dependencies:
-  act_thumbhash_flutter: ^1.0.0-dev.2
+  act_thumbhash_flutter: ^1.0.0
 ```
 
 This package depends on `act_thumbhash` and will pull it in automatically.
@@ -37,6 +37,12 @@ Image(
 // Using the extension method on Uint8List
 Image(
   image: hashBytes.toImageProvider(),
+  fit: BoxFit.cover,
+)
+
+// Larger decoded placeholder for hero images (default baseSize is 32)
+Image(
+  image: ThumbHashImageProvider(hashBytes, baseSize: 64),
   fit: BoxFit.cover,
 )
 ```

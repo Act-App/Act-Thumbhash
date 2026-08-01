@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Dependabot opens a PR daily; cancel superseded runs on the same branch.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Analyze & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The workspace contains a Flutter package, so the Flutter SDK is needed
+      # even to resolve the pure-Dart one. It bundles Dart.
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Print SDK versions
+        run: flutter --version
+
+      - name: Resolve workspace dependencies
+        run: dart pub get
+
+      - name: Verify formatting
+        run: dart format --output=none --set-exit-if-changed .
+
+      - name: Analyze act_thumbhash
+        run: dart analyze --fatal-infos
+        working-directory: packages/act_thumbhash
+
+      - name: Analyze act_thumbhash_flutter
+        run: flutter analyze --fatal-infos
+        working-directory: packages/act_thumbhash_flutter
+
+      - name: Test act_thumbhash
+        run: dart test
+        working-directory: packages/act_thumbhash
+
+      # Browser runs prove web support: the conditional isolate import must
+      # select the event-loop fallback, and the integer math must behave the
+      # same under JS number semantics. Chrome is preinstalled on the runners.
+      - name: Test act_thumbhash in the browser (dart2js)
+        run: dart test -p chrome
+        working-directory: packages/act_thumbhash
+
+      - name: Test act_thumbhash in the browser (dart2wasm)
+        run: dart test -p chrome -c dart2wasm
+        working-directory: packages/act_thumbhash
+
+      - name: Test act_thumbhash_flutter
+        run: flutter test
+        working-directory: packages/act_thumbhash_flutter
+
+      # Runs the provider suite on the actual web runtime, where compile-only
+      # checks are not enough: Uint64List and Isolate.run both compile for the
+      # web but throw when executed.
+      - name: Test act_thumbhash_flutter (web runtime)
+        run: flutter test --platform chrome
+        working-directory: packages/act_thumbhash_flutter
+
+      # Compiles the example for both web targets (wasm builds also produce
+      # the JS fallback bundle). The example depends on the local packages via
+      # path, so this compiles the branch's code, not a published version.
+      - name: Build web example
+        run: flutter build web --wasm
+        working-directory: packages/act_thumbhash_flutter/example
+
+      # The decoded fixture PNGs are committed, and the image tests rewrite
+      # them. A diff here means encoder output changed — intentional or not, it
+      # should be reviewed rather than merged silently.
+      - name: Check for unexpected changes to fixture output
+        run: git diff --exit-code -- packages/act_thumbhash/test/fixtures
+
+  publish-dry-run:
+    name: Publish dry run
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - run: dart pub get
+
+      # Catches packaging problems (missing CHANGELOG entry, bad constraints,
+      # oversized package) before a release rather than during it.
+      - name: Dry-run publish act_thumbhash
+        run: dart pub publish --dry-run
+        working-directory: packages/act_thumbhash
+
+      - name: Dry-run publish act_thumbhash_flutter
+        run: flutter pub publish --dry-run
+        working-directory: packages/act_thumbhash_flutter

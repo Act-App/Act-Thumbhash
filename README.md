@@ -14,23 +14,21 @@ images, e.g. a photo gallery. Store the hash of each image in your database,
 and send it to your client side. On the client side, generate a placeholder image 
 from the hash. Then load the original image asynchronously.
 
+Both packages run on all Dart and Flutter platforms, including the web.
+
 ## Installation
 
 ```yaml
 dependencies:
-<<<<<<< HEAD
-  act_thumbhash: ^1.0.0 # For non Flutter projects
+  act_thumbhash: ^1.0.0          # For non Flutter projects
   act_thumbhash_flutter: ^1.0.0  # For Flutter projects
-=======
-  act_thumbhash: ^1.0.0-dev.1
-  act_thumbhash_flutter: ^1.0.0-dev.1  # For Flutter projects
->>>>>>> 2997514 (add examples)
 ```
 
 ## Usage
 ### Dart (Core Library)
 Encoding an image to a ThumbHash
 ```dart
+import 'dart:convert';
 import 'dart:typed_data';
 import 'package:act_thumbhash/act_thumbhash.dart';
 
@@ -97,6 +95,12 @@ Image(
 // Using the extension method
 Image(
   image: hashBytes.toImageProvider(),
+  fit: BoxFit.cover,
+)
+
+// Larger decoded placeholder for hero images (default baseSize is 32)
+Image(
+  image: ThumbHashImageProvider(hashBytes, baseSize: 64),
   fit: BoxFit.cover,
 )
 ```

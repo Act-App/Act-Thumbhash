@@ -1,6 +1,11 @@
 import 'dart:math' as math;
 import 'dart:typed_data';
-import 'dart:isolate';
+
+// dart2wasm ships a dart:isolate stub, so selecting on `dart.library.isolate`
+// would route wasm builds to Isolate.run, which throws at runtime there.
+// `dart.library.js_interop` is true for both dart2js and dart2wasm, sending
+// every web target to the event-loop fallback instead.
+import 'isolates_io.dart' if (dart.library.js_interop) 'isolates_web.dart';
 
 /// Result of decoding a ThumbHash, containing the RGBA image data.
 class ThumbHashDecodeResult {
@@ -21,6 +26,8 @@ class ThumbHashDecodeResult {
   });
 }
 
+/// Images whose longer side exceeds this are downscaled before encoding;
+/// a ThumbHash cannot represent finer detail anyway.
 const maxEncodeDim = 128;
 
 /// ThumbHash encoder and decoder.
@@ -37,10 +44,14 @@ class ThumbHash {
   /// Encodes an RGBA image to a ThumbHash asynchronously.
   ///
   /// This runs the encoding in a separate isolate to avoid blocking the main
-  /// thread. Use this for UI applications.
+  /// thread. Use this for UI applications. On platforms without isolates (the
+  /// web), the encoding runs on the main thread after yielding once to the
+  /// event loop.
   ///
   /// [rgba] must contain width * height * 4 bytes (RGBA format).
   /// RGB should NOT be premultiplied by A.
+  /// Do not mutate [rgba] until the returned future completes: on the web the
+  /// encoder reads the live buffer, whereas isolates receive a copy.
   ///
   /// Returns the ThumbHash as a [Uint8List].
   ///
@@ -49,25 +60,27 @@ class ThumbHash {
     int width,
     int height,
     Uint8List rgba,
-  ) async {
-    return Isolate.run(() => encodeSync(width, height, rgba));
-  }
+  ) =>
+      runIsolated(() => encodeSync(width, height, rgba));
 
   /// Decodes a ThumbHash to an RGBA image asynchronously.
   ///
   /// This runs the decoding in a separate isolate to avoid blocking the main
-  /// thread. Use this for UI applications.
+  /// thread. Use this for UI applications. On platforms without isolates (the
+  /// web), the decoding runs on the main thread after yielding once to the
+  /// event loop.
   ///
-  /// [hash] is the ThumbHash bytes.
+  /// [hash] is the ThumbHash bytes. Do not mutate it until the returned
+  /// future completes: on the web the decoder reads the live buffer, whereas
+  /// isolates receive a copy.
   ///
   /// Returns [ThumbHashDecodeResult] containing width, height, and RGBA data.
   /// RGB is NOT premultiplied by A.
   ///
   /// Throws [ArgumentError] if hash is too short.
   static Future<ThumbHashDecodeResult> decodeAsync(Uint8List hash,
-      {int baseSize = 32}) async {
-    return Isolate.run(() => decodeSync(hash, baseSize: baseSize));
-  }
+          {int baseSize = 32}) =>
+      runIsolated(() => decodeSync(hash, baseSize: baseSize));
 
   // ============================================================
   // SYNC METHODS
@@ -93,16 +106,18 @@ class ThumbHash {
     // (no point in encoding large images)
     if (math.max(width, height) > maxEncodeDim) {
       final scale = maxEncodeDim / math.max(width, height);
-      final newW = (width * scale).toInt();
-      final newH = (height * scale).toInt();
+      // The floor keeps extreme aspect ratios (beyond maxEncodeDim:1) from
+      // scaling the short side down to zero pixels.
+      final newW = math.max(1, (width * scale).toInt());
+      final newH = math.max(1, (height * scale).toInt());
 
       final newRgba = Uint8List(newW * newH * 4);
       for (var y = 0; y < newH; y++) {
+        final srcRow = (y * height / newH).floor() * width;
+        final dstRow = y * newW;
         for (var x = 0; x < newW; x++) {
-          final srcX = (x * width / newW).floor();
-          final srcY = (y * height / newH).floor();
-          final srcIdx = (srcY * width + srcX) * 4;
-          final dstIdx = (y * newW + x) * 4;
+          final srcIdx = (srcRow + (x * width / newW).floor()) * 4;
+          final dstIdx = (dstRow + x) * 4;
           newRgba[dstIdx] = rgba[srcIdx];
           newRgba[dstIdx + 1] = rgba[srcIdx + 1];
           newRgba[dstIdx + 2] = rgba[srcIdx + 2];
@@ -117,14 +132,16 @@ class ThumbHash {
 
     final w = width;
     final h = height;
+    final n = w * h;
 
     // Determine the average color
     double avgR = 0, avgG = 0, avgB = 0, avgA = 0;
-    for (var i = 0, j = 0; i < w * h; i++, j += 4) {
+    for (var i = 0, j = 0; i < n; i++, j += 4) {
       final alpha = rgba[j + 3] / 255.0;
-      avgR += alpha / 255.0 * rgba[j];
-      avgG += alpha / 255.0 * rgba[j + 1];
-      avgB += alpha / 255.0 * rgba[j + 2];
+      final weight = alpha / 255.0;
+      avgR += weight * rgba[j];
+      avgG += weight * rgba[j + 1];
+      avgB += weight * rgba[j + 2];
       avgA += alpha;
     }
 
@@ -134,24 +151,32 @@ class ThumbHash {
       avgB /= avgA;
     }
 
-    final hasAlpha = avgA < w * h;
-    final lLimit = hasAlpha ? 5 : 7;
+    final hasAlpha = avgA < n;
+    final lLimit = _lLimit(hasAlpha);
     final maxWH = math.max(w, h);
     final lx = math.max(1, (lLimit * w / maxWH).round());
     final ly = math.max(1, (lLimit * h / maxWH).round());
 
+    // The raw lx/ly go into the header, but the luminance channel is always
+    // encoded with at least 3 coefficients per axis. The decoder applies the
+    // same floor when reading the header back, so skipping it here would emit
+    // fewer AC coefficients than any decoder expects.
+    final lxEnc = math.max(3, lx);
+    final lyEnc = math.max(3, ly);
+
     // Prepare channel data
-    final l = Float64List(w * h);
-    final p = Float64List(w * h);
-    final q = Float64List(w * h);
-    final a = Float64List(w * h);
+    final l = Float64List(n);
+    final p = Float64List(n);
+    final q = Float64List(n);
+    final a = Float64List(n);
 
     // Convert to LPQ color space
-    for (var i = 0, j = 0; i < w * h; i++, j += 4) {
+    for (var i = 0, j = 0; i < n; i++, j += 4) {
       final alpha = rgba[j + 3] / 255.0;
-      final r = avgR * (1 - alpha) + (rgba[j] / 255.0) * alpha;
-      final g = avgG * (1 - alpha) + (rgba[j + 1] / 255.0) * alpha;
-      final b = avgB * (1 - alpha) + (rgba[j + 2] / 255.0) * alpha;
+      final invAlpha = 1 - alpha;
+      final r = avgR * invAlpha + (rgba[j] / 255.0) * alpha;
+      final g = avgG * invAlpha + (rgba[j + 1] / 255.0) * alpha;
+      final b = avgB * invAlpha + (rgba[j + 2] / 255.0) * alpha;
       l[i] = (r + g + b) / 3;
       p[i] = (r + g) / 2 - b;
       q[i] = r - g;
@@ -159,19 +184,15 @@ class ThumbHash {
     }
 
     // Encode using DCT
-    final (lDc, lAc, lScale) = _encodeChannel(l, w, h, lx, ly);
+    final (lDc, lAc, lScale) = _encodeChannel(l, w, h, lxEnc, lyEnc);
     final (pDc, pAc, pScale) = _encodeChannel(p, w, h, 3, 3);
     final (qDc, qAc, qScale) = _encodeChannel(q, w, h, 3, 3);
 
-    double aDc = 1.0;
-    List<double> aAc = [];
-    double aScale = 1.0;
-
+    var aDc = 1.0;
+    var aAc = Float64List(0);
+    var aScale = 1.0;
     if (hasAlpha) {
-      final result = _encodeChannel(a, w, h, 5, 5);
-      aDc = result.$1;
-      aAc = result.$2;
-      aScale = result.$3;
+      (aDc, aAc, aScale) = _encodeChannel(a, w, h, 5, 5);
     }
 
     final isLandscape = w > h;
@@ -188,15 +209,7 @@ class ThumbHash {
     final qScaleInt = (63.0 * qScale).round().clamp(0, 63);
     final isLandscapeInt = isLandscape ? 1 : 0;
 
-    // Calculate hash size
-    var hashSize = 4 + _countAcCoeffs(lx, ly);
-    hashSize += _countAcCoeffs(3, 3);
-    hashSize += _countAcCoeffs(3, 3);
-    if (hasAlpha) {
-      hashSize += 1 + _countAcCoeffs(5, 5);
-    }
-    hashSize = (hashSize + 1) ~/ 2 + 3;
-
+    final (acStartNibble, hashSize) = _hashLayout(lxEnc, lyEnc, hasAlpha);
     final hash = Uint8List(hashSize);
 
     // Pack header bytes
@@ -206,37 +219,27 @@ class ThumbHash {
     hash[3] = lCount | (pScaleInt << 3);
     hash[4] = (pScaleInt >> 5) | (qScaleInt << 1) | (isLandscapeInt << 7);
 
-    var nibbleIndex = 10;
     if (hasAlpha) {
       final aDcInt = (15.0 * aDc).round().clamp(0, 15);
       final aScaleInt = (15.0 * aScale).round().clamp(0, 15);
       hash[5] = aDcInt | (aScaleInt << 4);
-      nibbleIndex = 12;
     }
 
-    void writeNibble(int value) {
+    var nibbleIndex = acStartNibble;
+
+    void writeAc(double value) {
+      final quantized = (15.0 * value).round().clamp(0, 15);
       final byteIndex = nibbleIndex ~/ 2;
       if (nibbleIndex % 2 == 0) {
-        hash[byteIndex] = value;
+        hash[byteIndex] = quantized;
       } else {
-        hash[byteIndex] |= value << 4;
+        hash[byteIndex] |= quantized << 4;
       }
       nibbleIndex++;
     }
 
-    for (final ac in lAc) {
-      writeNibble((15.0 * ac).round().clamp(0, 15));
-    }
-    for (final ac in pAc) {
-      writeNibble((15.0 * ac).round().clamp(0, 15));
-    }
-    for (final ac in qAc) {
-      writeNibble((15.0 * ac).round().clamp(0, 15));
-    }
-    if (hasAlpha) {
-      for (final ac in aAc) {
-        writeNibble((15.0 * ac).round().clamp(0, 15));
-      }
+    for (final channelAcs in [lAc, pAc, qAc, if (hasAlpha) aAc]) {
+      channelAcs.forEach(writeAc);
     }
 
     return hash;
@@ -248,7 +251,14 @@ class ThumbHash {
   ///
   /// Returns [ThumbHashDecodeResult] containing width, height, and RGBA data.
   /// RGB is NOT premultiplied by A.
+  ///
+  /// Throws [ArgumentError] if [hash] is shorter than its own header says it
+  /// should be, for example because it was truncated in transport, or if
+  /// [baseSize] is smaller than 1.
   static ThumbHashDecodeResult decodeSync(Uint8List hash, {int baseSize = 32}) {
+    if (baseSize < 1) {
+      throw ArgumentError.value(baseSize, 'baseSize', 'must be at least 1');
+    }
     if (hash.length < 5) {
       throw ArgumentError('Hash is too short (minimum 5 bytes)');
     }
@@ -270,29 +280,35 @@ class ThumbHash {
 
     int lx, ly;
     if (isLandscape) {
-      lx = math.max(3, hasAlpha ? 5 : 7);
+      lx = _lLimit(hasAlpha);
       ly = math.max(3, lCount);
     } else {
       lx = math.max(3, lCount);
-      ly = math.max(3, hasAlpha ? 5 : 7);
+      ly = _lLimit(hasAlpha);
     }
 
-    double aDc = 1.0;
-    double aScale = 1.0;
-
-    int acStart;
+    var aDc = 1.0;
+    var aScale = 1.0;
     if (hasAlpha) {
       if (hash.length < 6) {
         throw ArgumentError('Hash is too short for alpha channel');
       }
       aDc = (hash[5] & 15) / 15.0;
       aScale = ((hash[5] >> 4) & 15) / 15.0;
-      acStart = 12;
-    } else {
-      acStart = 10;
     }
 
-    var nibbleIndex = acStart;
+    // The header determines exactly how many AC coefficient nibbles follow.
+    // Validate up front so a truncated hash fails with a clear error instead
+    // of an out-of-bounds read partway through decoding.
+    final (acStartNibble, expectedLength) = _hashLayout(lx, ly, hasAlpha);
+    if (hash.length < expectedLength) {
+      throw ArgumentError(
+        'Hash is truncated: its header requires $expectedLength bytes, '
+        'got ${hash.length}',
+      );
+    }
+
+    var nibbleIndex = acStartNibble;
 
     int readNibble() {
       final byteIndex = nibbleIndex ~/ 2;
@@ -303,131 +319,77 @@ class ThumbHash {
       return value;
     }
 
-    final lAc = <double>[];
-    final pAc = <double>[];
-    final qAc = <double>[];
-    final aAc = <double>[];
-
-    for (var y = 0; y < ly; y++) {
-      for (var x = 0; x < lx; x++) {
-        if ((x != 0 || y != 0) && (x * ly + y * lx < lx * ly)) {
-          lAc.add((readNibble() / 7.5 - 1.0) * lScale);
-        }
-      }
+    Float64List readAcs(int nx, int ny, double scale) {
+      final ac = Float64List(_countAcCoeffs(nx, ny));
+      var i = 0;
+      _forEachAc(nx, ny, (_, __) {
+        ac[i++] = (readNibble() / 7.5 - 1.0) * scale;
+      });
+      return ac;
     }
 
-    for (var y = 0; y < 3; y++) {
-      for (var x = 0; x < 3; x++) {
-        if ((x != 0 || y != 0) && (x * 3 + y * 3 < 9)) {
-          pAc.add((readNibble() / 7.5 - 1.0) * pScale);
-        }
-      }
-    }
-
-    for (var y = 0; y < 3; y++) {
-      for (var x = 0; x < 3; x++) {
-        if ((x != 0 || y != 0) && (x * 3 + y * 3 < 9)) {
-          qAc.add((readNibble() / 7.5 - 1.0) * qScale);
-        }
-      }
-    }
-
-    if (hasAlpha) {
-      for (var y = 0; y < 5; y++) {
-        for (var x = 0; x < 5; x++) {
-          if ((x != 0 || y != 0) && (x * 5 + y * 5 < 25)) {
-            aAc.add((readNibble() / 7.5 - 1.0) * aScale);
-          }
-        }
-      }
-    }
+    final lAc = readAcs(lx, ly, lScale);
+    final pAc = readAcs(3, 3, pScale);
+    final qAc = readAcs(3, 3, qScale);
+    final aAc = hasAlpha ? readAcs(5, 5, aScale) : Float64List(0);
 
     // Decode image
-    final ratio = _thumbHashToApproximateAspectRatioInternal(
-      lx,
-      ly,
-      isLandscape,
-    );
-    final w = isLandscape ? baseSize : (baseSize / ratio).round();
-    final h = isLandscape ? (baseSize / ratio).round() : baseSize;
+    final ratio = isLandscape ? lx / ly : ly / lx;
+    // The floor keeps small baseSize values (e.g. 1) from rounding the short
+    // side down to zero pixels.
+    final shortSide = math.max(1, (baseSize / ratio).round());
+    final w = isLandscape ? baseSize : shortSide;
+    final h = isLandscape ? shortSide : baseSize;
 
     final rgba = Uint8List(w * h * 4);
 
-    final fxL = Float64List(lx);
-    final fyL = Float64List(ly);
-    final fxP = Float64List(3);
-    final fyP = Float64List(3);
-    final fxQ = Float64List(3);
-    final fyQ = Float64List(3);
-    final fxA = hasAlpha ? Float64List(5) : Float64List(0);
-    final fyA = hasAlpha ? Float64List(5) : Float64List(0);
+    // Precompute the DCT basis tables; the values depend only on the pixel
+    // position and coefficient index, and all channels share the expression.
+    final maxCx = math.max(lx, hasAlpha ? 5 : 3);
+    final maxCy = math.max(ly, hasAlpha ? 5 : 3);
+    final fx = Float64List(w * maxCx);
+    for (var x = 0; x < w; x++) {
+      for (var c = 0; c < maxCx; c++) {
+        fx[x * maxCx + c] = math.cos(math.pi / w * (x + 0.5) * c);
+      }
+    }
+    final fy = Float64List(h * maxCy);
+    for (var y = 0; y < h; y++) {
+      for (var c = 0; c < maxCy; c++) {
+        fy[y * maxCy + c] = math.cos(math.pi / h * (y + 0.5) * c);
+      }
+    }
+
+    // The coefficient walk order is fixed per decode, so resolve it once
+    // instead of re-evaluating the traversal condition for every pixel.
+    final lCoeffs = _acCoeffs(lx, ly);
+    final pqCoeffs = _acCoeffs(3, 3);
+    final aCoeffs = hasAlpha ? _acCoeffs(5, 5) : const <(int, int)>[];
+
+    double sample(
+      double dc,
+      Float64List ac,
+      List<(int, int)> coeffs,
+      int fxBase,
+      int fyBase,
+    ) {
+      var value = dc;
+      for (var i = 0; i < coeffs.length; i++) {
+        final (cx, cy) = coeffs[i];
+        value += ac[i] * fx[fxBase + cx] * fy[fyBase + cy];
+      }
+      return value;
+    }
 
     for (var y = 0; y < h; y++) {
+      final fyBase = y * maxCy;
       for (var x = 0; x < w; x++) {
-        for (var cx = 0; cx < lx; cx++) {
-          fxL[cx] = math.cos(math.pi / w * (x + 0.5) * cx);
-        }
-        for (var cy = 0; cy < ly; cy++) {
-          fyL[cy] = math.cos(math.pi / h * (y + 0.5) * cy);
-        }
-        for (var cx = 0; cx < 3; cx++) {
-          fxP[cx] = math.cos(math.pi / w * (x + 0.5) * cx);
-          fxQ[cx] = math.cos(math.pi / w * (x + 0.5) * cx);
-        }
-        for (var cy = 0; cy < 3; cy++) {
-          fyP[cy] = math.cos(math.pi / h * (y + 0.5) * cy);
-          fyQ[cy] = math.cos(math.pi / h * (y + 0.5) * cy);
-        }
-        if (hasAlpha) {
-          for (var cx = 0; cx < 5; cx++) {
-            fxA[cx] = math.cos(math.pi / w * (x + 0.5) * cx);
-          }
-          for (var cy = 0; cy < 5; cy++) {
-            fyA[cy] = math.cos(math.pi / h * (y + 0.5) * cy);
-          }
-        }
+        final fxBase = x * maxCx;
 
-        var l = lDc;
-        var acIndex = 0;
-        for (var cy = 0; cy < ly; cy++) {
-          for (var cx = 0; cx < lx; cx++) {
-            if ((cx != 0 || cy != 0) && (cx * ly + cy * lx < lx * ly)) {
-              l += lAc[acIndex++] * fxL[cx] * fyL[cy];
-            }
-          }
-        }
-
-        var pVal = pDc;
-        acIndex = 0;
-        for (var cy = 0; cy < 3; cy++) {
-          for (var cx = 0; cx < 3; cx++) {
-            if ((cx != 0 || cy != 0) && (cx * 3 + cy * 3 < 9)) {
-              pVal += pAc[acIndex++] * fxP[cx] * fyP[cy];
-            }
-          }
-        }
-
-        var qVal = qDc;
-        acIndex = 0;
-        for (var cy = 0; cy < 3; cy++) {
-          for (var cx = 0; cx < 3; cx++) {
-            if ((cx != 0 || cy != 0) && (cx * 3 + cy * 3 < 9)) {
-              qVal += qAc[acIndex++] * fxQ[cx] * fyQ[cy];
-            }
-          }
-        }
-
-        var aVal = aDc;
-        if (hasAlpha) {
-          acIndex = 0;
-          for (var cy = 0; cy < 5; cy++) {
-            for (var cx = 0; cx < 5; cx++) {
-              if ((cx != 0 || cy != 0) && (cx * 5 + cy * 5 < 25)) {
-                aVal += aAc[acIndex++] * fxA[cx] * fyA[cy];
-              }
-            }
-          }
-        }
+        final l = sample(lDc, lAc, lCoeffs, fxBase, fyBase);
+        final pVal = sample(pDc, pAc, pqCoeffs, fxBase, fyBase);
+        final qVal = sample(qDc, qAc, pqCoeffs, fxBase, fyBase);
+        final aVal = hasAlpha ? sample(aDc, aAc, aCoeffs, fxBase, fyBase) : aDc;
 
         final b = l - 2.0 / 3.0 * pVal;
         final r = (3.0 * l - b + qVal) / 2.0;
@@ -448,65 +410,108 @@ class ThumbHash {
   // PRIVATE HELPERS
   // ============================================================
 
-  static int _countAcCoeffs(int nx, int ny) {
-    var count = 0;
-    for (var y = 0; y < ny; y++) {
-      for (var x = 0; x < nx; x++) {
-        if ((x != 0 || y != 0) && (x * ny + y * nx < nx * ny)) {
-          count++;
+  /// Number of luminance coefficients along the longer axis.
+  static int _lLimit(bool hasAlpha) => hasAlpha ? 5 : 7;
+
+  /// Visits every stored AC coefficient of an nx x ny channel in stream
+  /// order: row by row, skipping the DC term and the upper coefficient
+  /// triangle. This single traversal defines the format's coefficient
+  /// layout; the encoder, the decoder, and the size accounting all use it.
+  static void _forEachAc(int nx, int ny, void Function(int cx, int cy) visit) {
+    for (var cy = 0; cy < ny; cy++) {
+      for (var cx = 0; cx < nx; cx++) {
+        if ((cx != 0 || cy != 0) && (cx * ny + cy * nx < nx * ny)) {
+          visit(cx, cy);
         }
       }
     }
+  }
+
+  static int _countAcCoeffs(int nx, int ny) {
+    var count = 0;
+    _forEachAc(nx, ny, (_, __) => count++);
     return count;
   }
 
-  static double _thumbHashToApproximateAspectRatioInternal(
-    int lx,
-    int ly,
-    bool isLandscape,
-  ) {
-    return isLandscape
-        ? lx.toDouble() / ly.toDouble()
-        : ly.toDouble() / lx.toDouble();
+  static List<(int, int)> _acCoeffs(int nx, int ny) {
+    final coeffs = <(int, int)>[];
+    _forEachAc(nx, ny, (cx, cy) => coeffs.add((cx, cy)));
+    return coeffs;
   }
 
-  static (double dc, List<double> ac, double scale) _encodeChannel(
+  /// The nibble where AC coefficients start and the total byte length of a
+  /// hash with the given luminance dimensions. Shared by the encoder's
+  /// allocation and the decoder's truncation validation so the two cannot
+  /// drift apart.
+  static (int acStartNibble, int byteLength) _hashLayout(
+    int lx,
+    int ly,
+    bool hasAlpha,
+  ) {
+    // The header is 5 bytes, followed by one more byte holding the alpha DC
+    // and scale when the image has alpha, so AC coefficients start at nibble
+    // 10 (12 with alpha) and take one nibble each.
+    final acStartNibble = hasAlpha ? 12 : 10;
+    var acCount = _countAcCoeffs(lx, ly) + 2 * _countAcCoeffs(3, 3);
+    if (hasAlpha) {
+      acCount += _countAcCoeffs(5, 5);
+    }
+    return (acStartNibble, (acStartNibble + acCount + 1) ~/ 2);
+  }
+
+  static (double dc, Float64List ac, double scale) _encodeChannel(
     Float64List channel,
     int w,
     int h,
     int nx,
     int ny,
   ) {
-    double dc = 0;
-    final ac = <double>[];
-    double scale = 0;
-
+    // Precompute the DCT basis tables; the cosines depend only on
+    // (position, coefficient index), not on the coefficient pair being
+    // accumulated, so computing them per pixel would redo identical work
+    // w * h times.
+    final cosX = Float64List(nx * w);
+    for (var cx = 0; cx < nx; cx++) {
+      for (var x = 0; x < w; x++) {
+        cosX[cx * w + x] = math.cos(math.pi / w * (x + 0.5) * cx);
+      }
+    }
+    final cosY = Float64List(ny * h);
     for (var cy = 0; cy < ny; cy++) {
-      for (var cx = 0; cx < nx; cx++) {
-        var f = 0.0;
-        for (var y = 0; y < h; y++) {
-          for (var x = 0; x < w; x++) {
-            f += channel[y * w + x] *
-                math.cos(math.pi / w * (x + 0.5) * cx) *
-                math.cos(math.pi / h * (y + 0.5) * cy);
-          }
-        }
-        f /= w * h;
-
-        if (cx == 0 && cy == 0) {
-          dc = f;
-        } else if ((cx * ny + cy * nx < nx * ny)) {
-          ac.add(f);
-          if (f.abs() > scale) {
-            scale = f.abs();
-          }
-        }
+      for (var y = 0; y < h; y++) {
+        cosY[cy * h + y] = math.cos(math.pi / h * (y + 0.5) * cy);
       }
     }
 
+    double coefficient(int cx, int cy) {
+      var f = 0.0;
+      final xBase = cx * w;
+      final yBase = cy * h;
+      for (var y = 0; y < h; y++) {
+        final row = y * w;
+        final basisY = cosY[yBase + y];
+        for (var x = 0; x < w; x++) {
+          f += channel[row + x] * cosX[xBase + x] * basisY;
+        }
+      }
+      return f / (w * h);
+    }
+
+    final dc = coefficient(0, 0);
+    final ac = Float64List(_countAcCoeffs(nx, ny));
+    var scale = 0.0;
+    var i = 0;
+    _forEachAc(nx, ny, (cx, cy) {
+      final f = coefficient(cx, cy);
+      ac[i++] = f;
+      if (f.abs() > scale) {
+        scale = f.abs();
+      }
+    });
+
     if (scale > 0) {
-      for (var i = 0; i < ac.length; i++) {
-        ac[i] = 0.5 + 0.5 * ac[i] / scale;
+      for (var j = 0; j < ac.length; j++) {
+        ac[j] = 0.5 + 0.5 * ac[j] / scale;
       }
     }
 

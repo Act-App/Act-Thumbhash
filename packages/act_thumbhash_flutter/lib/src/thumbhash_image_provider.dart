@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:ui' as ui;
 
@@ -18,22 +17,29 @@ class ThumbHashImageProvider extends ImageProvider<ThumbHashImageProvider> {
   ///
   /// [hash] is the ThumbHash bytes.
   /// [scale] is the scale to place in the [ImageInfo] object (default: 1.0).
+  /// [baseSize] is the length in pixels of the decoded placeholder's longer
+  /// side (default: 32).
   const ThumbHashImageProvider(
     this.hash, {
     this.scale = 1.0,
+    this.baseSize = 32,
   });
 
   /// Creates a ThumbHash image provider from a base64-encoded string.
   ///
   /// [base64Hash] is the ThumbHash encoded as a base64 string.
   /// [scale] is the scale to place in the [ImageInfo] object (default: 1.0).
+  /// [baseSize] is the length in pixels of the decoded placeholder's longer
+  /// side (default: 32).
   factory ThumbHashImageProvider.fromBase64(
     String base64Hash, {
     double scale = 1.0,
+    int baseSize = 32,
   }) {
     return ThumbHashImageProvider(
       base64.decode(base64.normalize(base64Hash)),
       scale: scale,
+      baseSize: baseSize,
     );
   }
 
@@ -42,6 +48,12 @@ class ThumbHashImageProvider extends ImageProvider<ThumbHashImageProvider> {
 
   /// The scale to place in the [ImageInfo] object of the image.
   final double scale;
+
+  /// The length in pixels of the decoded placeholder's longer side.
+  ///
+  /// Placeholders are blurry by nature, so the default of 32 is usually
+  /// enough; raise it for large hero images if banding becomes visible.
+  final int baseSize;
 
   @override
   Future<ThumbHashImageProvider> obtainKey(ImageConfiguration configuration) {
@@ -59,89 +71,61 @@ class ThumbHashImageProvider extends ImageProvider<ThumbHashImageProvider> {
   Future<ImageInfo> _loadAsync(ThumbHashImageProvider key) async {
     assert(key == this);
 
-    final image = await _decodeThumbHashToUiImage(hash);
-    return ImageInfo(image: image, scale: scale);
-  }
-
-  /// Decodes a ThumbHash to a Flutter [ui.Image].
-  static Future<ui.Image> _decodeThumbHashToUiImage(Uint8List hash) async {
-    final completer = Completer<ui.Image>();
-
     // Decode ThumbHash to RGBA (runs in isolate)
-    final result = await ThumbHash.decodeAsync(hash);
+    final result = await ThumbHash.decodeAsync(hash, baseSize: baseSize);
 
-    // Convert RGBA to ui.Image
-    ui.decodeImageFromPixels(
-      result.rgba,
-      result.width,
-      result.height,
-      ui.PixelFormat.rgba8888,
-      completer.complete,
-    );
-
-    return completer.future;
+    // Convert RGBA to ui.Image. The future-based descriptor API is used
+    // instead of ui.decodeImageFromPixels, whose success-only callback would
+    // leave the image stream hanging forever if the engine rejects the data.
+    final buffer = await ui.ImmutableBuffer.fromUint8List(result.rgba);
+    try {
+      final descriptor = ui.ImageDescriptor.raw(
+        buffer,
+        width: result.width,
+        height: result.height,
+        pixelFormat: ui.PixelFormat.rgba8888,
+      );
+      try {
+        final codec = await descriptor.instantiateCodec();
+        try {
+          final frame = await codec.getNextFrame();
+          return ImageInfo(image: frame.image, scale: scale);
+        } finally {
+          codec.dispose();
+        }
+      } finally {
+        descriptor.dispose();
+      }
+    } finally {
+      buffer.dispose();
+    }
   }
 
   /// Content-based equality comparison.
   ///
   /// Two [ThumbHashImageProvider] instances are equal if their hash bytes
-  /// are identical (content-wise) and their scale is the same.
+  /// are identical (content-wise) and their [scale] and [baseSize] are the
+  /// same.
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
     if (other.runtimeType != runtimeType) return false;
 
     return other is ThumbHashImageProvider &&
-        _bytesEqual(hash, other.hash) &&
-        scale == other.scale;
+        scale == other.scale &&
+        baseSize == other.baseSize &&
+        listEquals(hash, other.hash);
   }
 
   /// Content-based hash code.
   ///
   /// Computed from the actual bytes of the ThumbHash, not the object identity.
   @override
-  int get hashCode => Object.hash(_fnv1a(hash), scale);
+  int get hashCode => Object.hash(Object.hashAll(hash), scale, baseSize);
 
   @override
-  String toString() =>
-      '${objectRuntimeType(this, 'ThumbHashImageProvider')}(${hash.length} bytes, scale: $scale)';
-
-  /// Efficiently compares two byte lists for equality.
-  static bool _bytesEqual(Uint8List a, Uint8List b) {
-    if (identical(a, b)) return true;
-    if (a.length != b.length) return false;
-
-    // Compare 8 bytes at a time for efficiency
-    final numWords = a.lengthInBytes ~/ 8;
-    if (numWords > 0) {
-      final words1 = a.buffer.asUint64List(a.offsetInBytes, numWords);
-      final words2 = b.buffer.asUint64List(b.offsetInBytes, numWords);
-      for (var i = 0; i < words1.length; i++) {
-        if (words1[i] != words2[i]) return false;
-      }
-    }
-
-    // Compare remaining bytes
-    for (var i = numWords * 8; i < a.length; i++) {
-      if (a[i] != b[i]) return false;
-    }
-
-    return true;
-  }
-
-  /// Computes a hash code from byte content.
-  ///
-  /// Uses FNV-1a hash algorithm.
-  static int _fnv1a(Uint8List bytes) {
-    const int FNV_OFFSET_BASIS = 0x811c9dc5;
-    const int FNV_PRIME = 0x01000193;
-    int hash = FNV_OFFSET_BASIS;
-    for (int i = 0; i < bytes.length; i++) {
-      hash ^= bytes[i];
-      hash = (hash * FNV_PRIME) & 0xFFFFFFFF;
-    }
-    return hash;
-  }
+  String toString() => '${objectRuntimeType(this, 'ThumbHashImageProvider')}'
+      '(${hash.length} bytes, scale: $scale, baseSize: $baseSize)';
 }
 
 /// Extension to easily get a [ThumbHashImageProvider] from a [Uint8List].
@@ -151,7 +135,8 @@ extension ThumbHashImageProviderExtension on Uint8List {
   /// ```dart
   /// final provider = myThumbHashBytes.toImageProvider();
   /// ```
-  ThumbHashImageProvider toImageProvider({double scale = 1.0}) {
-    return ThumbHashImageProvider(this, scale: scale);
+  ThumbHashImageProvider toImageProvider(
+      {double scale = 1.0, int baseSize = 32}) {
+    return ThumbHashImageProvider(this, scale: scale, baseSize: baseSize);
   }
 }

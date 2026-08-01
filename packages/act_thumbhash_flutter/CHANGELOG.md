@@ -1,3 +1,7 @@
+## 1.0.0-dev.2
+
+- Documentation and packaging updates
+
 ## 1.0.0-dev.1
 
 - Initial pre-release

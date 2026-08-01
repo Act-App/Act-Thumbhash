@@ -39,6 +39,12 @@ Image(
   image: hashBytes.toImageProvider(),
   fit: BoxFit.cover,
 )
+
+// Larger decoded placeholder for hero images (default baseSize is 32)
+Image(
+  image: ThumbHashImageProvider(hashBytes, baseSize: 64),
+  fit: BoxFit.cover,
+)
 ```
 
 ### Progressive image loading with FadeInImage

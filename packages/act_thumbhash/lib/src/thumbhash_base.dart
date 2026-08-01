@@ -106,8 +106,10 @@ class ThumbHash {
     // (no point in encoding large images)
     if (math.max(width, height) > maxEncodeDim) {
       final scale = maxEncodeDim / math.max(width, height);
-      final newW = (width * scale).toInt();
-      final newH = (height * scale).toInt();
+      // The floor keeps extreme aspect ratios (beyond maxEncodeDim:1) from
+      // scaling the short side down to zero pixels.
+      final newW = math.max(1, (width * scale).toInt());
+      final newH = math.max(1, (height * scale).toInt());
 
       final newRgba = Uint8List(newW * newH * 4);
       for (var y = 0; y < newH; y++) {
@@ -270,7 +272,14 @@ class ThumbHash {
   ///
   /// Returns [ThumbHashDecodeResult] containing width, height, and RGBA data.
   /// RGB is NOT premultiplied by A.
+  ///
+  /// Throws [ArgumentError] if [hash] is shorter than its own header says it
+  /// should be, for example because it was truncated in transport, or if
+  /// [baseSize] is smaller than 1.
   static ThumbHashDecodeResult decodeSync(Uint8List hash, {int baseSize = 32}) {
+    if (baseSize < 1) {
+      throw ArgumentError.value(baseSize, 'baseSize', 'must be at least 1');
+    }
     if (hash.length < 5) {
       throw ArgumentError('Hash is too short (minimum 5 bytes)');
     }
@@ -312,6 +321,21 @@ class ThumbHash {
       acStart = 12;
     } else {
       acStart = 10;
+    }
+
+    // The header determines exactly how many AC coefficient nibbles follow.
+    // Validate up front so a truncated hash fails with a clear error instead
+    // of an out-of-bounds read partway through decoding.
+    var acCount = _countAcCoeffs(lx, ly) + 2 * _countAcCoeffs(3, 3);
+    if (hasAlpha) {
+      acCount += _countAcCoeffs(5, 5);
+    }
+    final expectedLength = (acStart + acCount + 1) ~/ 2;
+    if (hash.length < expectedLength) {
+      throw ArgumentError(
+        'Hash is truncated: its header requires $expectedLength bytes, '
+        'got ${hash.length}',
+      );
     }
 
     var nibbleIndex = acStart;
@@ -370,17 +394,19 @@ class ThumbHash {
       ly,
       isLandscape,
     );
-    final w = isLandscape ? baseSize : (baseSize / ratio).round();
-    final h = isLandscape ? (baseSize / ratio).round() : baseSize;
+    // The floor keeps small baseSize values (e.g. 1) from rounding the short
+    // side down to zero pixels.
+    final shortSide = math.max(1, (baseSize / ratio).round());
+    final w = isLandscape ? baseSize : shortSide;
+    final h = isLandscape ? shortSide : baseSize;
 
     final rgba = Uint8List(w * h * 4);
 
     final fxL = Float64List(lx);
     final fyL = Float64List(ly);
-    final fxP = Float64List(3);
-    final fyP = Float64List(3);
-    final fxQ = Float64List(3);
-    final fyQ = Float64List(3);
+    // The P and Q channels share the same 3x3 basis functions.
+    final fxPQ = Float64List(3);
+    final fyPQ = Float64List(3);
     final fxA = hasAlpha ? Float64List(5) : Float64List(0);
     final fyA = hasAlpha ? Float64List(5) : Float64List(0);
 
@@ -393,12 +419,10 @@ class ThumbHash {
           fyL[cy] = math.cos(math.pi / h * (y + 0.5) * cy);
         }
         for (var cx = 0; cx < 3; cx++) {
-          fxP[cx] = math.cos(math.pi / w * (x + 0.5) * cx);
-          fxQ[cx] = math.cos(math.pi / w * (x + 0.5) * cx);
+          fxPQ[cx] = math.cos(math.pi / w * (x + 0.5) * cx);
         }
         for (var cy = 0; cy < 3; cy++) {
-          fyP[cy] = math.cos(math.pi / h * (y + 0.5) * cy);
-          fyQ[cy] = math.cos(math.pi / h * (y + 0.5) * cy);
+          fyPQ[cy] = math.cos(math.pi / h * (y + 0.5) * cy);
         }
         if (hasAlpha) {
           for (var cx = 0; cx < 5; cx++) {
@@ -424,7 +448,7 @@ class ThumbHash {
         for (var cy = 0; cy < 3; cy++) {
           for (var cx = 0; cx < 3; cx++) {
             if ((cx != 0 || cy != 0) && (cx * 3 + cy * 3 < 9)) {
-              pVal += pAc[acIndex++] * fxP[cx] * fyP[cy];
+              pVal += pAc[acIndex++] * fxPQ[cx] * fyPQ[cy];
             }
           }
         }
@@ -434,7 +458,7 @@ class ThumbHash {
         for (var cy = 0; cy < 3; cy++) {
           for (var cx = 0; cx < 3; cx++) {
             if ((cx != 0 || cy != 0) && (cx * 3 + cy * 3 < 9)) {
-              qVal += qAc[acIndex++] * fxQ[cx] * fyQ[cy];
+              qVal += qAc[acIndex++] * fxPQ[cx] * fyPQ[cy];
             }
           }
         }

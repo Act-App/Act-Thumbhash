@@ -9,7 +9,7 @@ import 'package:act_thumbhash/act_thumbhash.dart';
 
 void testHelper(int fileNum, {int baseSize = 0}) {
   // Load and decode image to RGBA
-  final file = File('test/fixtures/test_image_' + fileNum.toString() + '.png');
+  final file = File('test/fixtures/test_image_$fileNum.png');
   final decoded = img.decodePng(file.readAsBytesSync())!;
   //print('Orig size: ${decoded.width}x${decoded.height}');
   final rgba = Uint8List.fromList(
@@ -59,7 +59,7 @@ void testHelper(int fileNum, {int baseSize = 0}) {
     bytes: result.rgba.buffer,
     numChannels: 4,
   );
-  File('test/fixtures/output_image_' + fileNum.toString() + '.png')
+  File('test/fixtures/output_image_$fileNum.png')
       .writeAsBytesSync(img.encodePng(output));
 }
 
